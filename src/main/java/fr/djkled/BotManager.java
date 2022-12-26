@@ -19,6 +19,9 @@ import net.dv8tion.jda.api.managers.AudioManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import javax.security.auth.login.LoginException;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Properties;
 
 public class BotManager extends ListenerAdapter {
     static AudioPlayerManager playerManager;
@@ -28,10 +31,13 @@ public class BotManager extends ListenerAdapter {
     static AudioPlayer audioPlayer;
     PlaylistManager playlistManager;
 
-    public static void main(String[] args) throws LoginException {
+    public static void main(String[] args) throws LoginException, IOException {
+        Properties prop = new Properties();
+        prop.load(new FileInputStream("src/main/resources/config.properties"));
+        String apiKey = prop.getProperty("apiKey");
         playerManager = new DefaultAudioPlayerManager();
         AudioSourceManagers.registerRemoteSources(playerManager);
-        JDA bot = JDABuilder.createDefault("OTg4MTk5MDI5NzEwMTU1Nzc2.GAvtQQ.NKlOMfRgb4LCpFvxCXDrd3dJFTm8EmOtTR8_gs")
+        JDA bot = JDABuilder.createDefault(apiKey)
                 .setActivity(Activity.listening("No"))
                 .enableIntents(GatewayIntent.MESSAGE_CONTENT)
                 .disableCache(CacheFlag.ACTIVITY, CacheFlag.EMOJI, CacheFlag.MEMBER_OVERRIDES, CacheFlag.CLIENT_STATUS, CacheFlag.STICKER)
