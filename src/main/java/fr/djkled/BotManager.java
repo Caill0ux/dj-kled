@@ -1,5 +1,6 @@
 package fr.djkled;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
@@ -18,9 +19,14 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.managers.AudioManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import javax.security.auth.login.LoginException;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Properties;
 
 public class BotManager extends ListenerAdapter {
@@ -30,11 +36,13 @@ public class BotManager extends ListenerAdapter {
     static AudioManager audioManager;
     static AudioPlayer audioPlayer;
     PlaylistManager playlistManager;
+    static String YoutubeAPIKEY;
 
     public static void main(String[] args) throws LoginException, IOException {
         Properties prop = new Properties();
         prop.load(new FileInputStream("src/main/resources/config.properties"));
-        String apiKey = prop.getProperty("apiKey");
+        String apiKey = prop.getProperty("discordApiKey");
+        YoutubeAPIKEY = prop.getProperty("youtubeApiKey");
         playerManager = new DefaultAudioPlayerManager();
         AudioSourceManagers.registerRemoteSources(playerManager);
         JDA bot = JDABuilder.createDefault(apiKey)
@@ -44,8 +52,7 @@ public class BotManager extends ListenerAdapter {
                 .disableIntents(GatewayIntent.GUILD_PRESENCES,GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_BANS, GatewayIntent.GUILD_EMOJIS_AND_STICKERS, GatewayIntent.GUILD_WEBHOOKS, GatewayIntent.GUILD_INVITES, GatewayIntent.DIRECT_MESSAGE_REACTIONS, GatewayIntent.GUILD_MESSAGE_TYPING, GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS,GatewayIntent.DIRECT_MESSAGE_TYPING)
                 .addEventListeners(new BotManager())
                 .build();
-
-}
+    }
 
 
     @Override
@@ -61,21 +68,21 @@ public class BotManager extends ListenerAdapter {
             case "!random" -> playlistManager.Shuffle();
             case "!clear" -> playlistManager.Clear();
             case "!mix" -> {
+
                 VoiceChannel voiceChannel = (VoiceChannel) event.getMember().getVoiceState().getChannel();
                 if (voiceChannel == null) {
                     channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
                     return;
                 }
-                channel.sendMessage("Mixing! :cd: :notes:").queue();
-                if (voiceChannel != null) {
-                    Connect(voiceChannel, event.getGuild().getAudioManager());
+                Connect(voiceChannel, event.getGuild().getAudioManager());
+                if(playlistManager.GetIsMixing()){
+                    playlistManager.Mixing(false);
+                    return;
                 }
                 AddMusic("https://www.youtube.com/playlist?list=PLI7R7C130Vbo0_v30onp9RE1K2ceyuk9n");
-                playlistManager.Shuffle();
             }
 
         }
-
         if(message.startsWith("!k ")){
             VoiceChannel voiceChannel = (VoiceChannel) event.getMember().getVoiceState().getChannel();
             if(voiceChannel == null) {
@@ -83,14 +90,19 @@ public class BotManager extends ListenerAdapter {
                 return;
             }
             String search = event.getMessage().getContentRaw().substring(3);
-            channel.sendMessage("Roger That!").queue();
-            if(voiceChannel != null){
-                Connect(voiceChannel, event.getGuild().getAudioManager());
+            Connect(voiceChannel, event.getGuild().getAudioManager());
+            if (!search.startsWith("https://www.yout")){
+                try {
+                    search = "https://www.youtube.com/watch?v=" + YoutubeSearch(search);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
             AddMusic(search);
         }
 
     }
+
     public void Connect(VoiceChannel voiceChannel, AudioManager audioManager){
         audioManager.openAudioConnection(voiceChannel);
         audioPlayer = playerManager.createPlayer();
@@ -107,7 +119,8 @@ public class BotManager extends ListenerAdapter {
         }
     }
 
-    public void AddMusic(String search){
+    public void AddMusic(String search) {
+
         playerManager.loadItem(search, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
@@ -117,11 +130,12 @@ public class BotManager extends ListenerAdapter {
 
             @Override
             public void playlistLoaded(AudioPlaylist audioPlaylist) {
-                playlistManager.Clear();
+                playlistManager.ClearPlaylistBuffer();
                 for(AudioTrack track : audioPlaylist.getTracks()){
-                    playlistManager.Queue(track);
+                    playlistManager.QueuePlaylist(track);
                 }
-                //playlistManager.Shuffle();
+                playlistManager.ShufflePlaylistBuffer();
+                playlistManager.Mixing(true);
             }
 
             @Override
@@ -140,12 +154,50 @@ public class BotManager extends ListenerAdapter {
     }
 
 
-   /* public String YoutubeSearch(String query, String APIKEY) throws IOException {
-        URL url = new URL("https://www.googleapis.com/youtube/v3/search?key="+ APIKEY + "&type=video&part=snippet&maxResults=1&q=" + query);
+    static public String YoutubeSearch(String query) throws IOException {
+        URL url = new URL("https://www.googleapis.com/youtube/v3/search?key="+ YoutubeAPIKEY + "&type=video&part=snippet&maxResults=1&q=" + URLEncoder.encode(query, "UTF-8"));
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         InputStream response = connection.getInputStream();
-        var videoID = ;
+        String jsonString = readInputStream(response);
 
-        return videoID;
-    }*/
+        // Parse the JSON string into a JSONObject
+        JSONObject json = new JSONObject(jsonString);
+
+        // Get the items array
+        JSONArray items = json.getJSONArray("items");
+
+        // Get the first item in the array
+        JSONObject item = items.getJSONObject(0);
+
+        // Get the id object
+        JSONObject id = item.getJSONObject("id");
+
+        // Get the videoId
+        String videoId = id.getString("videoId");
+
+        return videoId;
+    }
+
+    private static String readInputStream(InputStream inputStream) {
+    StringBuilder result = new StringBuilder();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        String line;
+        while ((line = reader.readLine()) != null) {
+            result.append(line);
+        }
+    } catch (IOException e) {
+        // Handle exception
+    }
+    return result.toString();
+    }
+
+
+    static public void onWebHookReceived(){ /*
+        JSONParser jsonParser = new JSONParser();
+        JSONObject jsonObject = (JSONObject) jsonParser.parse(new InputStreamReader(, "UTF-8"));
+        ((JSONObject)jsonObject.get("intents")).get("query");
+
+        YoutubeSearch(query)
+    */}
+
 }

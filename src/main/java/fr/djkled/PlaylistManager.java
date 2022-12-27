@@ -15,6 +15,9 @@ public class PlaylistManager extends AudioEventAdapter {
     static Integer trackPlaying = 0;
     static boolean isLooping;
     static boolean isPlaying;
+    static boolean isMixing;
+    static List<AudioTrack> playlistBuffer = new ArrayList<AudioTrack>();
+
     PlaylistManager(AudioPlayer audioPlayer){
         this.audioPlayer = audioPlayer;
         new AudioPlayerSendHandler(audioPlayer);
@@ -25,12 +28,32 @@ public class PlaylistManager extends AudioEventAdapter {
         if(!isPlaying){
             Play();
         }
-
     }
 
+    public void Mixing(boolean arg){
+        isMixing = arg;
+        if (arg && !isPlaying){
+            if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+            tracks.add(playlistBuffer.get(0));
+            playlistBuffer.remove(0);
+            Play();
+        }
+    }
+    public boolean GetIsMixing(){
+        return isMixing;
+    }
+    public void ClearPlaylistBuffer(){
+        playlistBuffer.clear();
+    }
+    public void QueuePlaylist(AudioTrack track){
+        playlistBuffer.add(track);
+    }
+    public void ShufflePlaylistBuffer(){
+        Collections.shuffle(playlistBuffer);
+    }
     public void Play(){
         BotManager.ChangeMusic();
-        audioPlayer.playTrack(tracks.get(trackPlaying));
+        audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
         isPlaying = true;
     }
 
@@ -44,9 +67,14 @@ public class PlaylistManager extends AudioEventAdapter {
                 trackPlaying++;
             }
             if(trackPlaying < tracks.toArray().length) {
-                BotManager.ChangeMusic();
-                audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
-                isPlaying = true;
+                Play();
+                return;
+            }
+            if(isMixing){
+                if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+                tracks.add(playlistBuffer.get(0));
+                playlistBuffer.remove(0);
+                Play();
                 return;
             }
             isPlaying = false;
@@ -56,15 +84,20 @@ public class PlaylistManager extends AudioEventAdapter {
     public void Skip() {
         trackPlaying++;
         if(tracks.toArray().length > trackPlaying){
-            BotManager.ChangeMusic();
-            audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
-            isPlaying = true;
+            Play();
+            return;
         }
-        else{
-            trackPlaying = tracks.size();
-            audioPlayer.stopTrack();
-            isPlaying = false;
+        if(isMixing){
+            if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+            tracks.add(playlistBuffer.get(0));
+            playlistBuffer.remove(0);
+            Play();
+            return;
         }
+        trackPlaying = tracks.size();
+        audioPlayer.stopTrack();
+        isPlaying = false;
+
     }
     public void Loop() {
         isLooping = !isLooping;
@@ -73,22 +106,21 @@ public class PlaylistManager extends AudioEventAdapter {
     public void Rewind() {
         if(trackPlaying - 1 >= 0) {
             trackPlaying--;
-            BotManager.ChangeMusic();
-            audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
-            isPlaying = true;
+            Play();
         }
     }
 
     public void Shuffle(){
         trackPlaying = 0;
         Collections.shuffle(tracks);
-        BotManager.ChangeMusic();
-        audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
+        Play();
     }
 
     public void Clear(){
         //var temp = tracks.get(trackPlaying);
-        trackPlaying = 0;
         tracks.clear();
+        if(isPlaying == true)
+            tracks.add(audioPlayer.getPlayingTrack());
+        trackPlaying = 0;
     }
 }
