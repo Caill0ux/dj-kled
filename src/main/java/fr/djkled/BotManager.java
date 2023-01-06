@@ -1,6 +1,5 @@
 package fr.djkled;
 
-import com.fasterxml.jackson.core.JsonParser;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
@@ -37,13 +36,13 @@ public class BotManager extends ListenerAdapter {
     static AudioPlayer audioPlayer;
     PlaylistManager playlistManager;
     static String YoutubeAPIKEY;
-
     public static void main(String[] args) throws LoginException, IOException {
         Properties prop = new Properties();
         prop.load(new FileInputStream("src/main/resources/config.properties"));
         String apiKey = prop.getProperty("discordApiKey");
         YoutubeAPIKEY = prop.getProperty("youtubeApiKey");
         playerManager = new DefaultAudioPlayerManager();
+        //WebhookServer.StartServer();
         AudioSourceManagers.registerRemoteSources(playerManager);
         JDA bot = JDABuilder.createDefault(apiKey)
                 .setActivity(Activity.listening("No"))
