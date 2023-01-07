@@ -11,53 +11,50 @@ import java.util.List;
 
 public class PlaylistManager extends AudioEventAdapter {
     static AudioPlayer audioPlayer;
-    static List<AudioTrack> tracks = new ArrayList<AudioTrack>();
+    static List<AudioTrack> tracks = new ArrayList<>();
     static Integer trackPlaying = 0;
     static boolean isLooping;
     static boolean isPlaying;
     static boolean isMixing;
-    static List<AudioTrack> playlistBuffer = new ArrayList<AudioTrack>();
+    static List<AudioTrack> playlistBuffer = new ArrayList<>();
 
     PlaylistManager(AudioPlayer audioPlayer){
-        this.audioPlayer = audioPlayer;
+        PlaylistManager.audioPlayer = audioPlayer;
         new AudioPlayerSendHandler(audioPlayer);
     }
 
-    public void Queue(AudioTrack track){
+    public static void Queue(AudioTrack track){
         tracks.add(track);
         if(!isPlaying){
             Play();
         }
     }
 
-    public void Mixing(boolean arg){
-        isMixing = arg;
-        if (arg && !isPlaying){
-            if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+    public static void Mixing(){
+        if (!isPlaying){
+            if (playlistBuffer.size() == 0){ isMixing = false; return;}
             tracks.add(playlistBuffer.get(0));
             playlistBuffer.remove(0);
             Play();
         }
     }
-    public boolean GetIsMixing(){
-        return isMixing;
-    }
-    public void ClearPlaylistBuffer(){
+
+    public static void ClearPlaylistBuffer(){
         playlistBuffer.clear();
     }
-    public void QueuePlaylist(AudioTrack track){
+    public static void QueuePlaylist(AudioTrack track){
         playlistBuffer.add(track);
     }
-    public void ShufflePlaylistBuffer(){
+    public static void ShufflePlaylistBuffer(){
         Collections.shuffle(playlistBuffer);
     }
-    public void Play(){
+    public static void Play(){
         BotManager.ChangeMusic();
         audioPlayer.playTrack(tracks.get(trackPlaying).makeClone());
         isPlaying = true;
     }
 
-    public void Pause(){
+    public static void Pause(){
         audioPlayer.setPaused(!audioPlayer.isPaused());
     }
     @Override
@@ -71,7 +68,7 @@ public class PlaylistManager extends AudioEventAdapter {
                 return;
             }
             if(isMixing){
-                if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+                if (playlistBuffer.size() == 0){ isMixing = false; return;}
                 tracks.add(playlistBuffer.get(0));
                 playlistBuffer.remove(0);
                 Play();
@@ -81,14 +78,14 @@ public class PlaylistManager extends AudioEventAdapter {
         }
     }
 
-    public void Skip() {
+    public static void Skip() {
         trackPlaying++;
         if(tracks.toArray().length > trackPlaying){
             Play();
             return;
         }
         if(isMixing){
-            if (playlistBuffer.size() <= 0){ isMixing = false; return;}
+            if (playlistBuffer.size() == 0){ isMixing = false; return;}
             tracks.add(playlistBuffer.get(0));
             playlistBuffer.remove(0);
             Play();
@@ -97,29 +94,28 @@ public class PlaylistManager extends AudioEventAdapter {
         trackPlaying = tracks.size();
         audioPlayer.stopTrack();
         isPlaying = false;
-
     }
-    public void Loop() {
+    public static void Loop() {
         isLooping = !isLooping;
     }
 
-    public void Rewind() {
+    public static void Rewind() {
         if(trackPlaying - 1 >= 0) {
             trackPlaying--;
             Play();
         }
     }
 
-    public void Shuffle(){
+    public static void Shuffle(){
         trackPlaying = 0;
         Collections.shuffle(tracks);
         Play();
     }
 
-    public void Clear(){
+    public static void Clear(){
         //var temp = tracks.get(trackPlaying);
         tracks.clear();
-        if(isPlaying == true)
+        if(isPlaying)
             tracks.add(audioPlayer.getPlayingTrack());
         trackPlaying = 0;
     }

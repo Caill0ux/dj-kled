@@ -11,6 +11,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.VoiceChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -26,15 +27,19 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.Objects;
 import java.util.Properties;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class BotManager extends ListenerAdapter {
     static AudioPlayerManager playerManager;
-    MessageChannel channel = null;
-    VoiceChannel voiceChannel = null;
+    static MessageChannel channel = null;
+    static VoiceChannel voiceChannel = null;
+    static PlaylistManager playlistManager;
+    static Member tackedMember;
     static AudioManager audioManager;
     static AudioPlayer audioPlayer;
-    PlaylistManager playlistManager;
     static String YoutubeAPIKEY;
     public static void main(String[] args) throws LoginException, IOException {
         Properties prop = new Properties();
@@ -59,23 +64,26 @@ public class BotManager extends ListenerAdapter {
         channel = event.getChannel();
         String message = event.getMessage().getContentRaw().toLowerCase();
         switch (message) {
-            case "!skip", "!next", "!s", "!n" -> playlistManager.Skip();
-            case "!loop", "!l" -> playlistManager.Loop();
-            case "!rewind", "!r" -> playlistManager.Rewind();
-            case "!pause", "!p" -> playlistManager.Pause();
+            case "!skip", "!next", "!s", "!n" -> PlaylistManager.Skip();
+            case "!loop", "!l" -> PlaylistManager.Loop();
+            case "!rewind", "!r" -> PlaylistManager.Rewind();
+            case "!pause", "!p" -> PlaylistManager.Pause();
             case "!disconnect", "!d" -> Disconnect();
-            case "!random" -> playlistManager.Shuffle();
-            case "!clear" -> playlistManager.Clear();
+            case "!random" -> PlaylistManager.Shuffle();
+            case "!clear" -> PlaylistManager.Clear();
+            case "!track" -> tackedMember = event.getMember();
+            case "!server" -> WebhookServer.StartServer();
             case "!mix" -> {
 
-                VoiceChannel voiceChannel = (VoiceChannel) event.getMember().getVoiceState().getChannel();
+                VoiceChannel voiceChannel = (VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel();
                 if (voiceChannel == null) {
                     channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
                     return;
                 }
                 Connect(voiceChannel, event.getGuild().getAudioManager());
-                if(playlistManager.GetIsMixing()){
-                    playlistManager.Mixing(false);
+                if(PlaylistManager.isMixing){
+                    PlaylistManager.Mixing();
+                    PlaylistManager.isMixing = false;
                     return;
                 }
                 AddMusic("https://www.youtube.com/playlist?list=PLI7R7C130Vbo0_v30onp9RE1K2ceyuk9n");
@@ -83,7 +91,7 @@ public class BotManager extends ListenerAdapter {
 
         }
         if(message.startsWith("!k ")){
-            VoiceChannel voiceChannel = (VoiceChannel) event.getMember().getVoiceState().getChannel();
+            VoiceChannel voiceChannel = (VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel();
             if(voiceChannel == null) {
                 channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
                 return;
@@ -102,39 +110,40 @@ public class BotManager extends ListenerAdapter {
 
     }
 
-    public void Connect(VoiceChannel voiceChannel, AudioManager audioManager){
+    public static void Connect(VoiceChannel voiceChannel, AudioManager audioManager){
         audioManager.openAudioConnection(voiceChannel);
         audioPlayer = playerManager.createPlayer();
         playlistManager = new PlaylistManager(audioPlayer);
         audioPlayer.addListener(playlistManager);
-        this.voiceChannel = voiceChannel;
-        this.audioManager = audioManager;
+        BotManager.voiceChannel = voiceChannel;
+        BotManager.audioManager = audioManager;
     }
 
-    public void Disconnect(){
+    public static void Disconnect(){
         if(audioManager != null && voiceChannel != null){
             audioManager.closeAudioConnection();
-            this.voiceChannel = null;
+            voiceChannel = null;
         }
     }
 
-    public void AddMusic(String search) {
+    public static void AddMusic(String search) {
 
         playerManager.loadItem(search, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
-                playlistManager.Queue(track);
+                PlaylistManager.Queue(track);
 
             }
 
             @Override
             public void playlistLoaded(AudioPlaylist audioPlaylist) {
-                playlistManager.ClearPlaylistBuffer();
+                PlaylistManager.ClearPlaylistBuffer();
                 for(AudioTrack track : audioPlaylist.getTracks()){
-                    playlistManager.QueuePlaylist(track);
+                    PlaylistManager.QueuePlaylist(track);
                 }
-                playlistManager.ShufflePlaylistBuffer();
-                playlistManager.Mixing(true);
+                PlaylistManager.ShufflePlaylistBuffer();
+                PlaylistManager.Mixing();
+                PlaylistManager.isMixing = true;
             }
 
             @Override
@@ -154,7 +163,7 @@ public class BotManager extends ListenerAdapter {
 
 
     static public String YoutubeSearch(String query) throws IOException {
-        URL url = new URL("https://www.googleapis.com/youtube/v3/search?key="+ YoutubeAPIKEY + "&type=video&part=snippet&maxResults=1&q=" + URLEncoder.encode(query, "UTF-8"));
+        URL url = new URL("https://www.googleapis.com/youtube/v3/search?key="+ YoutubeAPIKEY + "&type=video&part=snippet&maxResults=1&q=" + URLEncoder.encode(query, UTF_8));
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         InputStream response = connection.getInputStream();
         String jsonString = readInputStream(response);
@@ -171,10 +180,7 @@ public class BotManager extends ListenerAdapter {
         // Get the id object
         JSONObject id = item.getJSONObject("id");
 
-        // Get the videoId
-        String videoId = id.getString("videoId");
-
-        return videoId;
+        return id.getString("videoId");
     }
 
     private static String readInputStream(InputStream inputStream) {
@@ -189,14 +195,5 @@ public class BotManager extends ListenerAdapter {
     }
     return result.toString();
     }
-
-
-    static public void onWebHookReceived(){ /*
-        JSONParser jsonParser = new JSONParser();
-        JSONObject jsonObject = (JSONObject) jsonParser.parse(new InputStreamReader(, "UTF-8"));
-        ((JSONObject)jsonObject.get("intents")).get("query");
-
-        YoutubeSearch(query)
-    */}
 
 }
