@@ -31,21 +31,6 @@
             <version>1.19.4</version>
         </dependency>
         <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-api</artifactId>
-        <version>2.19.0</version>
-    </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>2.19.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.19.0</version>
-        </dependency>
-        <dependency>
             <groupId>net.dv8tion</groupId>
             <artifactId>JDA</artifactId>
             <version>5.0.0-alpha.18</version>
@@ -82,7 +67,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>fully.qualified.MainClass</mainClass>
+                            <mainClass>fr.djkled.BotManager</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

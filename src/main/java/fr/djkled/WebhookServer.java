@@ -1,8 +1,5 @@
 package fr.djkled;
 
-
-
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import net.dv8tion.jda.api.entities.VoiceChannel;

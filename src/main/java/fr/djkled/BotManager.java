@@ -41,13 +41,14 @@ public class BotManager extends ListenerAdapter {
     static AudioManager audioManager;
     static AudioPlayer audioPlayer;
     static String YoutubeAPIKEY;
+    static String MixPlaylist;
     public static void main(String[] args) throws LoginException, IOException {
         Properties prop = new Properties();
-        prop.load(new FileInputStream("src/main/resources/config.properties"));
+        prop.load(new FileInputStream("config.properties"));
         String apiKey = prop.getProperty("discordApiKey");
         YoutubeAPIKEY = prop.getProperty("youtubeApiKey");
+        MixPlaylist = prop.getProperty("mixPlaylistURL");
         playerManager = new DefaultAudioPlayerManager();
-        //WebhookServer.StartServer();
         AudioSourceManagers.registerRemoteSources(playerManager);
         JDA bot = JDABuilder.createDefault(apiKey)
                 .setActivity(Activity.listening("No"))
@@ -86,7 +87,7 @@ public class BotManager extends ListenerAdapter {
                     PlaylistManager.isMixing = false;
                     return;
                 }
-                AddMusic("https://www.youtube.com/playlist?list=PLI7R7C130Vbo0_v30onp9RE1K2ceyuk9n");
+                AddMusic(MixPlaylist);
             }
 
         }
@@ -167,17 +168,9 @@ public class BotManager extends ListenerAdapter {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         InputStream response = connection.getInputStream();
         String jsonString = readInputStream(response);
-
-        // Parse the JSON string into a JSONObject
         JSONObject json = new JSONObject(jsonString);
-
-        // Get the items array
         JSONArray items = json.getJSONArray("items");
-
-        // Get the first item in the array
         JSONObject item = items.getJSONObject(0);
-
-        // Get the id object
         JSONObject id = item.getJSONObject("id");
 
         return id.getString("videoId");
