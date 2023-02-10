@@ -42,12 +42,18 @@ public class BotManager extends ListenerAdapter {
     static AudioPlayer audioPlayer;
     static String YoutubeAPIKEY;
     static String MixPlaylist;
+    static String KeyStorePath;
+    static String KeystorePassword;
+    static String KeyManagerPassword;
     public static void main(String[] args) throws LoginException, IOException {
         Properties prop = new Properties();
         prop.load(new FileInputStream("config.properties"));
         String apiKey = prop.getProperty("discordApiKey");
         YoutubeAPIKEY = prop.getProperty("youtubeApiKey");
         MixPlaylist = prop.getProperty("mixPlaylistURL");
+        KeyStorePath = prop.getProperty("keyStorePath");
+        KeystorePassword = prop.getProperty("keystore_password");
+        KeyManagerPassword = prop.getProperty("key_manager_password");
         playerManager = new DefaultAudioPlayerManager();
         AudioSourceManagers.registerRemoteSources(playerManager);
         JDA bot = JDABuilder.createDefault(apiKey)
@@ -73,42 +79,24 @@ public class BotManager extends ListenerAdapter {
             case "!random" -> PlaylistManager.Shuffle();
             case "!clear" -> PlaylistManager.Clear();
             case "!track" -> tackedMember = event.getMember();
-            case "!server" -> WebhookServer.StartServer();
-            case "!mix" -> {
-
-                VoiceChannel voiceChannel = (VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel();
-                if (voiceChannel == null) {
-                    channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
-                    return;
-                }
-                Connect(voiceChannel, event.getGuild().getAudioManager());
-                if(PlaylistManager.isMixing){
-                    PlaylistManager.Mixing();
-                    PlaylistManager.isMixing = false;
-                    return;
-                }
-                AddMusic(MixPlaylist);
-            }
-
+            case "!server" -> new WebhookServer().start();
+            case "!mix" -> Mixing((VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel(),event.getGuild().getAudioManager());
         }
-        if(message.startsWith("!k ")){
-            VoiceChannel voiceChannel = (VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel();
-            if(voiceChannel == null) {
-                channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
-                return;
-            }
-            String search = event.getMessage().getContentRaw().substring(3);
-            Connect(voiceChannel, event.getGuild().getAudioManager());
-            if (!search.startsWith("https://www.yout")){
-                try {
-                    search = "https://www.youtube.com/watch?v=" + YoutubeSearch(search);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            AddMusic(search);
-        }
+        if(message.startsWith("!k "))
+            AddMusic((VoiceChannel) Objects.requireNonNull(Objects.requireNonNull(event.getMember()).getVoiceState()).getChannel(), event.getMember().getGuild().getAudioManager(), event.getMessage().getContentRaw().substring(3));
+    }
 
+    public static void Mixing(VoiceChannel voiceChannel, AudioManager audioManager){
+        if(PlaylistManager.isMixing){
+            PlaylistManager.Mixing();
+            PlaylistManager.isMixing = false;
+            return;
+        }
+        if (voiceChannel == null) {
+            channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
+            return;
+        }
+        AddMusic(voiceChannel, audioManager, MixPlaylist);
     }
 
     public static void Connect(VoiceChannel voiceChannel, AudioManager audioManager){
@@ -127,8 +115,20 @@ public class BotManager extends ListenerAdapter {
         }
     }
 
-    public static void AddMusic(String search) {
-
+    public static void AddMusic(VoiceChannel voiceChannel, AudioManager audioManager, String search) {
+        if(voiceChannel == null) {
+            channel.sendMessage("You need to be in a Voice Channel to let me in!").queue();
+            return;
+        }
+        Connect(voiceChannel, audioManager);
+        if (!search.startsWith("https://www.yout")){
+            try {
+                search = "https://www.youtube.com/watch?v=" + YoutubeSearch(search);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        String finalSearch = search;
         playerManager.loadItem(search, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
@@ -149,12 +149,12 @@ public class BotManager extends ListenerAdapter {
 
             @Override
             public void noMatches() {
-                channel.sendMessage(search + " Not find.").queue();
+                channel.sendMessage(finalSearch + " Not find.").queue();
             }
 
             @Override
             public void loadFailed(FriendlyException e) {
-                channel.sendMessage("Couldn't load " + search).queue();
+                channel.sendMessage("Couldn't load " + finalSearch).queue();
             }
         });
     }
